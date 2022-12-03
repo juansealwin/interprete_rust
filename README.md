@@ -1,6 +1,6 @@
 # proyecto-01
 
-FIXME: description
+Interprete de RUST en Clojure
 
 ## Installation
 
