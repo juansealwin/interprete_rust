@@ -185,9 +185,9 @@
                   (= cabeza "VIRTU") (let [nom (second linea)]
                                           (if (not (.exists (clojure.java.io/file nom)))
                                               (do (print "ERROR: ") (println (buscar-mensaje 2)) (flush) (driver-loop status))
-                                              (let [res (parsear (agregar-ptocoma (escanear-arch nom)))]
+                                              (let [res (parsear (spy "res ptocoma:" (agregar-ptocoma (escanear-arch nom))))]
                                                    (do (if (= (estado res) :sin-errores)
-                                                           (dump (bytecode res)))
+                                                           (spy "res dump" (dump (bytecode res))))
                                                        (driver-loop status)))))
                   (= cabeza "INTER") (let [nom (second linea)]
                                           (if (not (.exists (clojure.java.io/file nom)))
@@ -295,9 +295,9 @@
 
 (defn parsear [tokens]
   (let [simbolo-inicial (first tokens)]
-       (if (nil? simbolo-inicial)
+       (if (nil? (spy "SIMBOLO INICIAL" simbolo-inicial))
            (dar-error ['EOF '() [] :sin-errores] 3)
-           (programa [simbolo-inicial (rest tokens) [] :sin-errores [] 0 [] []])))
+           (programa [simbolo-inicial (spy "REST TOKENS" (rest tokens)) [] :sin-errores [] 0 [] []])))
            ; IMPORTANTE
            ; Este es el AMBIENTE inicial del interprete en su fase compilativa.
            ; [simb-actual  simb-no-parseados-aun  simb-ya-parseados  estado  contexto  prox-var  bytecode mapa-regs-de-act]
@@ -349,9 +349,9 @@
 
 (defn procesar-terminal [amb x cod-err]
   (if (= (estado amb) :sin-errores)
-      (if (or (and (symbol? x) (= (simb-actual amb) x)) (x (simb-actual amb)))
+      (if (spy "procesar-terminal valor if" (or (and (symbol? (spy "x de procesar terminal" x )) (= (simb-actual amb) x)) (x (spy "simb actual de donde falla"(simb-actual amb)))))
           (escanear amb)
-          (dar-error amb cod-err))
+          (dar-error amb (spy "CODIGO DE ERROR" cod-err)))
       amb)
 )
 
@@ -489,7 +489,7 @@
 
 (defn inicializar-contexto-global [amb]
   (if (= (estado amb) :sin-errores)
-      (assoc amb 4 [[0] []])           ; [fronteras  tabla]
+      (spy "inicializar-contexto-global -> Resultado" (assoc amb 4 [[0] []]))           ; [fronteras  tabla]
       amb)
 )
 
@@ -500,7 +500,7 @@
 )
 
 (defn programa [amb]
-  (if (= (estado amb) :sin-errores)
+  (if (spy "PROGRAMA amb" (= (estado amb) :sin-errores))
       (-> amb
           (inicializar-contexto-global)
           (generar ,,, 'CAL 0)
@@ -617,14 +617,14 @@
 (defn declarar-opcional-param [amb]
   (if (= (estado amb) :sin-errores)
       (cond
-        (= (simb-actual amb) 'mut)
+        (spy "declarar-opcional-param1" (= (spy "simb-actual de esta funcion" (simb-actual amb)) 'mut))
           (-> amb
               (escanear)
               (procesar-terminal ,,, identificador? 10)
               (procesar-terminal ,,, (symbol ":") 14)
               (procesar-tipo-param)
               (procesar-mas-param))
-        (identificador? (simb-actual amb))
+        (spy "declarar-opcional-param2" (identificador? (simb-actual amb)))
           (-> amb
               (escanear)
               (procesar-terminal ,,, (symbol ":") 14)
@@ -789,7 +789,7 @@
 )
 
 (defn procesar-declaraciones-fn [amb]
-  (if (= (estado amb) :sin-errores)
+  (if (spy "procesar-declaraciones-fn -> true" (= (estado amb) :sin-errores))
       (-> amb
           (procesar-terminal ,,, 'fn 9)
           (declarar-fn)
@@ -2107,63 +2107,6 @@
 ; nil
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; (defn ins-salto-y-tabulador [tokens idx nro-bloque]
-;;   (let [token (nth tokens idx)]
-;;     (cond 
-;;       (= (symbol ";") token)
-;;         (concat 
-;;           (concat (take (inc idx) tokens) (str (clojure.string/join (concat (str \newline) (repeat nro-bloque \tab)))))
-;;           (nthrest tokens (inc idx))
-;;         )
-        
-;;       :else 
-;;       (concat 
-;;         (concat (take idx tokens) (list \newline))
-;;         (concat 
-;;           (concat (list token) (str (clojure.string/join (concat (str \newline) (repeat nro-bloque \tab))))) 
-;;           (nthrest tokens (inc idx)))
-;;       )
-;;     )
-;;   )
-;; )
-
-
-;; (defn ins-espacio [tokens idx]
-;;   (concat 
-;;     (concat (take (inc idx) tokens) (list \space))
-;;     (nthrest tokens (inc idx))
-;;   )
-;; )
-
-
-;; (defn ins-comillas [tokens idx]
-;;   (concat 
-;;     (concat (take idx tokens) (concat (list "\"") (nth tokens idx)))
-;;     (concat (list "\" ") (nthrest tokens (inc idx)))
-;;   )
-;; )
-
-
-;; (defn listar 
-;;   ([tokens] (listar (vector 0 tokens) 0))
-;;   ([idx-tokens nro-bloque] (
-;;     let [
-;;       tokens (second idx-tokens),
-;;       idx (first idx-tokens)
-;;     ]
-;;     (if (> (count tokens) idx)
-;;       (let [token (nth tokens idx)]
-;;       (cond
-;;         (= (symbol "{") token) (listar (vector (+ idx 2 nro-bloque) (ins-salto-y-tabulador tokens idx (inc nro-bloque))) (inc nro-bloque))
-;;         (= (symbol ";") token) (listar (vector (+ idx 2 nro-bloque) (ins-salto-y-tabulador tokens idx nro-bloque)) nro-bloque)
-;;         (= (symbol "}") token) (listar (vector (+ idx 2 nro-bloque) (ins-salto-y-tabulador tokens idx (dec nro-bloque))) (dec nro-bloque))
-;;         (string? token) (listar (vector (+ idx (count token) 2) (ins-comillas tokens idx)) nro-bloque)
-;;         :else (listar (vector (+ idx 2) (ins-espacio tokens idx)) nro-bloque)
-;;       ))
-;;       (println (str (clojure.string/join tokens ))))
-;;     )
-;;   ))
-
 
 (defn ins-salto-y-tabulador [idx tokens nro-bloque]
   (let [token (nth tokens idx)]
@@ -2473,10 +2416,30 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn identificador? [identificador]
-  (cond 
-    (= (palabra-reservada? identificador) true) false
-    (and (>= (int (first (str identificador))) 48) (<= (int (first (str identificador))) 57)) false    
-    :else true
+  (let [
+    str-ident (str identificador)
+    primer-char (int (first str-ident))
+  ]
+    (cond 
+      (= (palabra-reservada? identificador) true) false
+      (not 
+        (or 
+          (and (>= primer-char 65) (<= primer-char 90)) 
+          (and (>= primer-char 97) (<= primer-char 122)))) false    
+       
+      (some false? 
+        (vec (map 
+          #(or
+            ; Letras mayúsculas y minusculas 
+            (and (>= (int %1) 65) (<= (int %1) 90)) 
+            (and (>= (int %1) 97) (<= (int %1) 122)) 
+            ; Números
+            (and (>= (int %1) 48) (<= (int %1) 57)) 
+            ; Guión bajo
+            (= %1 95)) 
+          str-ident))) false  
+      :else true
+    )
   )
 )
 
