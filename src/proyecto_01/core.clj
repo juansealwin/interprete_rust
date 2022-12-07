@@ -2805,7 +2805,7 @@
             args-totales 
             (rest args-restantes)
           )
-        :else (map list (texto args-totales))
+        :else (apply list texto args-totales)
       )
     )
   )
@@ -2960,5 +2960,3 @@
 (defn cargar-en-reg-dest [vec coor tipo val]
   (assoc vec (first coor) (assoc (vec (first coor)) (second coor) (vector tipo val)))
 )
-
-true
