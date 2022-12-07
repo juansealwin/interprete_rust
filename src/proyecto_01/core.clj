@@ -133,6 +133,7 @@
 (declare ins-comillas)
 
 (declare contar-symb)
+(declare contar-symb-hasta)
 (declare ins-ptocoma)
 (declare contar-verificar-sig)
 (declare sigue-expresion)
@@ -2216,10 +2217,16 @@
   )
 )
 
+(defn contar-symb-hasta [tokens idx condicion-corte]
+  (
+    count (take-while #(= (condicion-corte %1) false) (nthnext tokens idx))
+  )
+)
+
 (defn contar-verificar-sig [tokens idx simb simb-excep sig-char]
   (let [nuevo-idx (contar-symb tokens idx simb simb-excep), sig (nth tokens nuevo-idx)] 
       (cond
-        (= sig sig-char) (contar-symb tokens nuevo-idx simb simb-excep)
+        (= sig sig-char) (contar-verificar-sig tokens nuevo-idx simb simb-excep sig-char)
         :else nuevo-idx 
       )
   )
@@ -2272,7 +2279,7 @@
         idx (inc (first idx-tokens)),
         token (nth tokens idx)] 
     (cond 
-      (number? token) 
+      (number? token)
         (let [sig-idx (cond (= (nth tokens (inc idx)) '*) (contar-symb tokens idx (symbol ")") (symbol "(")) :else (inc idx)),
               res (cond (sigue-expresion (nth tokens sig-idx)) tokens :else (ins-ptocoma tokens sig-idx) )]
         (vector (inc sig-idx) res))
@@ -2289,8 +2296,31 @@
         (let [sig-idx (cond (= (nth tokens (inc idx)) (symbol "*")) (+ idx 3) :else (+ idx 2))
               res (cond (sigue-expresion (nth tokens sig-idx)) tokens :else (ins-ptocoma tokens sig-idx))]
         (vector (inc sig-idx) res))
+
+      ; TODO: para el ejemplo de = "nombre_ident" ej main09.rs
+      (identificador? token)
+        (let [
+          nuevo-idx (+ idx 2),
+          token-mas-dos (nth tokens nuevo-idx),        
+        ]
+          (cond
+            ;TODO: revisar
+            (= 'as_str token-mas-dos)
+              (let [sig-idx (contar-verificar-sig tokens nuevo-idx (symbol ")") (symbol "(") 'unwrap)] 
+              (vector (sig-idx) (ins-ptocoma tokens sig-idx)))
+
+            (= 'trim token-mas-dos) 
+              (let [
+                expect-idx (+ nuevo-idx (contar-symb tokens nuevo-idx 'expect)),
+                sig-idx (+ 1 expect-idx (contar-symb tokens (inc expect-idx) (symbol ")")))
+              ] 
+              (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
+            
+            :else (let [sig-idx (contar-symb tokens idx (symbol ")") (symbol "("))] 
+              (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
+        ))
          
-      (symbol? token) 
+      (symbol? token)
         (let 
         [
           sig-token (nth tokens (inc idx)),
@@ -2298,16 +2328,18 @@
             (cond 
               (sigue-expresion sig-token) idx 
               (= sig-token (symbol ".")) (contar-verificar-sig tokens idx (symbol ")") (symbol "(") (symbol "."))
+              (= (symbol "(") token) (+ idx (contar-symb-hasta tokens idx palabra-reservada?))
               :else (inc idx)
             ),
           res (cond (sigue-expresion (nth tokens sig-idx)) tokens :else (ins-ptocoma tokens sig-idx) )
         ]
         (vector (inc sig-idx) res))
-          
+      
       :else (vector idx tokens)
     )
   )
 )
+
 
 
 (defn agregar-ptocoma 
@@ -2317,10 +2349,9 @@
       tokens (second idx-tokens),
       idx (first idx-tokens)
     ]
-    (if (> (count tokens) idx)
+    (if (> (count spy tokens) idx)
       (let [token (nth tokens idx)]
       (cond
-        
         (= 'use token ) (agregar-ptocoma (ptocoma-use idx-tokens) nro-bloque)
         (= 'const token) (agregar-ptocoma (vector (+ idx 7) (ins-ptocoma tokens (+ idx 6))) nro-bloque)
         (= (symbol "{") token) (agregar-ptocoma (vector (inc idx) tokens) (inc nro-bloque))
@@ -2343,6 +2374,11 @@
   ))
 )
 
+; TODO: borrar
+;(agregar-ptocoma (list 'io (symbol ":") (symbol ":") 'stdout (symbol "(") (symbol ")") (symbol ".") 'flush (symbol "(") (symbol ")") (symbol ".") 'expect  (symbol "(") "error de esc" (symbol ")") (symbol "}") ))
+;(agregar-ptocoma (list 'let 'mut 'r (symbol ":") 'f64 (symbol "=") (symbol "(") 'izq '+ 'der (symbol ")") (symbol "/") 2.0 'let))
+;(agregar-ptocoma (list 'let 'm (symbol ":") 'f6 '= 'potencia_rec (symbol "(") 'x (symbol ",") 'n (symbol "/") 2 (symbol ")") 'let ) )
+(agregar-ptocoma (list 'let 'e (symbol ":") 'i64 '= 'renglon (symbol ".") 'trim (symbol "(") (symbol ")") (symbol ".") 'parse (symbol "::") (symbol "<")  'i64 (symbol ">") ( ) (symbol "(") (symbol ")") (symbol ".") 'expect (symbol "(") "Se esperaba un numero entero!" (symbol ")") 'println!))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; PALABRA-RESERVADA?: Recibe un elemento y devuelve true si es una palabra reservada de Rust; si no, false.
 ; Por ejemplo:
@@ -2436,7 +2472,7 @@
             ; Números
             (and (>= (int %1) 48) (<= (int %1) 57)) 
             ; Guión bajo
-            (= %1 95)) 
+            (= (int %1) 95)) 
           str-ident))) false  
       :else true
     )
