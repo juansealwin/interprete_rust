@@ -186,9 +186,9 @@
                   (= cabeza "VIRTU") (let [nom (second linea)]
                                           (if (not (.exists (clojure.java.io/file nom)))
                                               (do (print "ERROR: ") (println (buscar-mensaje 2)) (flush) (driver-loop status))
-                                              (let [res (parsear (spy "res ptocoma:" (agregar-ptocoma (escanear-arch nom))))]
+                                              (let [res (parsear (agregar-ptocoma (escanear-arch nom)))]
                                                    (do (if (= (estado res) :sin-errores)
-                                                           (spy "res dump" (dump (bytecode res))))
+                                                           (dump (bytecode res)))
                                                        (driver-loop status)))))
                   (= cabeza "INTER") (let [nom (second linea)]
                                           (if (not (.exists (clojure.java.io/file nom)))
@@ -296,9 +296,9 @@
 
 (defn parsear [tokens]
   (let [simbolo-inicial (first tokens)]
-       (if (nil? (spy "SIMBOLO INICIAL" simbolo-inicial))
+       (if (nil? simbolo-inicial)
            (dar-error ['EOF '() [] :sin-errores] 3)
-           (programa [simbolo-inicial (spy "REST TOKENS" (rest tokens)) [] :sin-errores [] 0 [] []])))
+           (programa [simbolo-inicial (rest tokens) [] :sin-errores [] 0 [] []])))
            ; IMPORTANTE
            ; Este es el AMBIENTE inicial del interprete en su fase compilativa.
            ; [simb-actual  simb-no-parseados-aun  simb-ya-parseados  estado  contexto  prox-var  bytecode mapa-regs-de-act]
@@ -350,9 +350,9 @@
 
 (defn procesar-terminal [amb x cod-err]
   (if (= (estado amb) :sin-errores)
-      (if (spy "procesar-terminal valor if" (or (and (symbol? (spy "x de procesar terminal" x )) (= (simb-actual amb) x)) (x (spy "simb actual de donde falla"(simb-actual amb)))))
+      (if (or (and (symbol? x ) (= (simb-actual amb) x)) (x (simb-actual amb)))
           (escanear amb)
-          (dar-error amb (spy "CODIGO DE ERROR" cod-err)))
+          (dar-error amb cod-err))
       amb)
 )
 
@@ -490,7 +490,7 @@
 
 (defn inicializar-contexto-global [amb]
   (if (= (estado amb) :sin-errores)
-      (spy "inicializar-contexto-global -> Resultado" (assoc amb 4 [[0] []]))           ; [fronteras  tabla]
+      (assoc amb 4 [[0] []])          ; [fronteras  tabla]
       amb)
 )
 
@@ -501,7 +501,7 @@
 )
 
 (defn programa [amb]
-  (if (spy "PROGRAMA amb" (= (estado amb) :sin-errores))
+  (if (= (estado amb) :sin-errores)
       (-> amb
           (inicializar-contexto-global)
           (generar ,,, 'CAL 0)
@@ -618,14 +618,14 @@
 (defn declarar-opcional-param [amb]
   (if (= (estado amb) :sin-errores)
       (cond
-        (spy "declarar-opcional-param1" (= (spy "simb-actual de esta funcion" (simb-actual amb)) 'mut))
+        (= (simb-actual amb) 'mut)
           (-> amb
               (escanear)
               (procesar-terminal ,,, identificador? 10)
               (procesar-terminal ,,, (symbol ":") 14)
               (procesar-tipo-param)
               (procesar-mas-param))
-        (spy "declarar-opcional-param2" (identificador? (simb-actual amb)))
+        (identificador? (simb-actual amb))
           (-> amb
               (escanear)
               (procesar-terminal ,,, (symbol ":") 14)
@@ -790,8 +790,8 @@
 )
 
 (defn procesar-declaraciones-fn [amb]
-  (if (spy "procesar-declaraciones-fn -> true" (= (estado amb) :sin-errores))
-      (-> amb
+  (if (= (estado amb) :sin-errores)
+      (-> amb  
           (procesar-terminal ,,, 'fn 9)
           (declarar-fn)
           (declarar-mas-fn))
@@ -948,7 +948,7 @@
 )
 
 (defn generar-pushfi-cadena [amb]
-  (generar amb 'PUSHFI (last (simb-ya-parseados amb))) 
+  (generar amb 'PUSHFI (last (simb-ya-parseados amb)))
 )
 
 (defn procesar-opcional-cadena-expresiones-a-imprimir [amb]
@@ -2293,7 +2293,7 @@
       (= 'f64 token)
         (let [
           sig-idx (contar-symb tokens idx (symbol ")") (symbol "(")),
-          res-idx (cond (= (nth tokens (inc idx)) 'as) (+ sig-idx 2) :else sig-idx )
+          res-idx (cond (= (nth tokens (+ idx 5)) 'as) (+ sig-idx 2) :else sig-idx )
         ] 
         (vector (inc res-idx) (ins-ptocoma tokens res-idx)))
       
@@ -2325,12 +2325,16 @@
               (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
             
             :else (let [
+              token-que-sigue (nth tokens (inc idx)),
               sig-idx (
                 cond 
-                  (= (nth tokens (inc idx)) (symbol ".")) (contar-symb tokens idx (symbol ")") (symbol "(")) 
+                  (or 
+                    (= token-que-sigue (symbol ".")) 
+                    (= token-que-sigue (symbol "("))
+                  ) (contar-symb tokens idx (symbol ")") (symbol "(")) 
                   :else (inc idx)
               )
-            ] 
+              ]
               (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
           )
         )
