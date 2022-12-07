@@ -141,8 +141,7 @@
 (declare ptocoma-cierre-bloque)
 (declare ptocoma-igualdad)
 
-(declare contar-hasta-llave)
-(declare ins-chars)
+(declare reemplazar-primero)
 
 
 
@@ -2776,60 +2775,39 @@
 ; user=> (convertir-formato-impresion '("Las raices cuadradas de {} son +{:.8} y -{:.8}" 4.0 1.999999999985448 1.999999999985448))
 ; ("Las raices cuadradas de %.0f son +%.8f y -%.8f" 4.0 1.999999999985448 1.999999999985448)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn contar-hasta-llave [tokens idx]
-    (
-      + (count (take-while #(not= 123 (int %1)) (nthnext tokens idx))) 1
-    )
-)
-
-(defn ins-chars [tokens chars comienzo final] 
-  (concat 
-    (concat (take comienzo tokens) chars) 
-    (nthrest tokens final)
-  )
+    
+(defn reemplazar-primero 
+  ([texto cadena] (clojure.string/replace-first texto "{}" cadena))
+  ([texto token cadena] (clojure.string/replace-first texto "{}" cadena))
 )
 
 (defn convertir-formato-impresion 
-  ([fmt] (
-    let [ txt (vec (seq (first fmt))), args (pop fmt)] 
-    (convertir-formato-impresion txt args 0 0)) 
+  ([args]
+    (let [
+      texto (first args)
+      args-totales (rest args)
+    ]
+    (cond 
+      (= (count args-totales) 0) (list texto) 
+      :else (convertir-formato-impresion texto args-totales args-totales)
+    ))
   )
-  ([txt args num-arg idx] 
-    (if (= (count args) num-arg) 
-      (cons (clojure.string/join txt) args)
-      (let 
-        [
-          sig-idx (+ (contar-hasta-llave txt idx) idx),
-          nuevo-txt 
-            (cond 
-              (= (int (nth txt sig-idx)) 125) 
-                (let [arg (nth args num-arg), primer-idx (dec sig-idx), ultimo-idx (inc sig-idx)] 
-                  (cond 
-                    (string? arg) (ins-chars txt "%s" primer-idx ultimo-idx)
-                    (float? arg) (ins-chars txt "%.0f" primer-idx ultimo-idx)
-                    :else (ins-chars txt "%d" primer-idx ultimo-idx)
-                  )
-                ) 
-              :else 
-                (let [
-                  primer-idx (dec sig-idx), 
-                  decim (nth txt (+ sig-idx 2)), 
-                  ultimo-idx (+ sig-idx 3 (count (str decim))), 
-                  res (list (clojure.string/join (concat (concat "%." (str decim)) "f")))
-                ]
-                    (ins-chars txt res primer-idx ultimo-idx)) 
-            ),
-          sig-arg (inc num-arg)
-        ]
-        (convertir-formato-impresion 
-          nuevo-txt
-          args
-          sig-arg
-          sig-idx
-        )
+  ([texto args-totales args-restantes]
+    (let [sig-arg (first args-restantes)]
+      (cond
+        (string? sig-arg) 
+          (convertir-formato-impresion (reemplazar-primero texto "%s") args-totales (rest args-restantes))
+        (integer? sig-arg) 
+          (convertir-formato-impresion (reemplazar-primero texto "%d") args-totales (rest args-restantes))
+        (float? sig-arg) 
+          (convertir-formato-impresion 
+            (reemplazar-primero (reemplazar-primero texto "%.0f") #"\{:.(\d)\}" "%.$1f")
+            args-totales 
+            (rest args-restantes)
+          )
+        :else (map list (texto args-totales))
       )
-    )     
+    )
   )
 )
 
