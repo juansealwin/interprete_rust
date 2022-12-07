@@ -2279,6 +2279,8 @@
         idx (inc (first idx-tokens)),
         token (nth tokens idx)] 
     (cond 
+      (= '= token) (vector (inc idx) tokens)
+
       (number? token)
         (let [sig-idx (cond (= (nth tokens (inc idx)) '*) (contar-symb tokens idx (symbol ")") (symbol "(")) :else (inc idx)),
               res (cond (sigue-expresion (nth tokens sig-idx)) tokens :else (ins-ptocoma tokens sig-idx) )]
@@ -2289,8 +2291,11 @@
         (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
       
       (= 'f64 token)
-        (let [sig-idx (contar-verificar-sig tokens idx (symbol ")") (symbol "(") 'as)] 
-        (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
+        (let [
+          sig-idx (contar-symb tokens idx (symbol ")") (symbol "(")),
+          res-idx (cond (= (nth tokens (inc idx)) 'as) (+ sig-idx 2) :else sig-idx )
+        ] 
+        (vector (inc res-idx) (ins-ptocoma tokens res-idx)))
       
       (or (= (symbol "-") token) (= (symbol "*") token))
         (let [sig-idx (cond (= (nth tokens (inc idx)) (symbol "*")) (+ idx 3) :else (+ idx 2))
@@ -2301,24 +2306,34 @@
       (identificador? token)
         (let [
           nuevo-idx (+ idx 2),
-          token-mas-dos (nth tokens nuevo-idx),        
+          sig-token (nth tokens nuevo-idx),        
         ]
           (cond
             ;TODO: revisar
-            (= 'as_str token-mas-dos)
-              (let [sig-idx (contar-verificar-sig tokens nuevo-idx (symbol ")") (symbol "(") 'unwrap)] 
-              (vector (sig-idx) (ins-ptocoma tokens sig-idx)))
+            (= 'as_str sig-token)
+              (let [
+                expect-idx (+ nuevo-idx (contar-symb tokens nuevo-idx 'unwrap)),
+                sig-idx (+ 1 expect-idx (contar-symb tokens (inc expect-idx) (symbol ")")))
+              ] 
+              (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
 
-            (= 'trim token-mas-dos) 
+            (= 'trim sig-token)
               (let [
                 expect-idx (+ nuevo-idx (contar-symb tokens nuevo-idx 'expect)),
                 sig-idx (+ 1 expect-idx (contar-symb tokens (inc expect-idx) (symbol ")")))
               ] 
               (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
             
-            :else (let [sig-idx (contar-symb tokens idx (symbol ")") (symbol "("))] 
+            :else (let [
+              sig-idx (
+                cond 
+                  (= (nth tokens (inc idx)) (symbol ".")) (contar-symb tokens idx (symbol ")") (symbol "(")) 
+                  :else (inc idx)
+              )
+            ] 
               (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
-        ))
+          )
+        )
          
       (symbol? token)
         (let 
@@ -2349,7 +2364,7 @@
       tokens (second idx-tokens),
       idx (first idx-tokens)
     ]
-    (if (> (count spy tokens) idx)
+    (if (> (count tokens) idx)
       (let [token (nth tokens idx)]
       (cond
         (= 'use token ) (agregar-ptocoma (ptocoma-use idx-tokens) nro-bloque)
@@ -2374,11 +2389,41 @@
   ))
 )
 
+
+
 ; TODO: borrar
 ;(agregar-ptocoma (list 'io (symbol ":") (symbol ":") 'stdout (symbol "(") (symbol ")") (symbol ".") 'flush (symbol "(") (symbol ")") (symbol ".") 'expect  (symbol "(") "error de esc" (symbol ")") (symbol "}") ))
 ;(agregar-ptocoma (list 'let 'mut 'r (symbol ":") 'f64 (symbol "=") (symbol "(") 'izq '+ 'der (symbol ")") (symbol "/") 2.0 'let))
 ;(agregar-ptocoma (list 'let 'm (symbol ":") 'f6 '= 'potencia_rec (symbol "(") 'x (symbol ",") 'n (symbol "/") 2 (symbol ")") 'let ) )
-(agregar-ptocoma (list 'let 'e (symbol ":") 'i64 '= 'renglon (symbol ".") 'trim (symbol "(") (symbol ")") (symbol ".") 'parse (symbol "::") (symbol "<")  'i64 (symbol ">") ( ) (symbol "(") (symbol ")") (symbol ".") 'expect (symbol "(") "Se esperaba un numero entero!" (symbol ")") 'println!))
+;(agregar-ptocoma (list 'let 'e (symbol ":") 'i64 '= 'renglon (symbol ".") 'trim (symbol "(") (symbol ")") (symbol ".") 'parse (symbol "::") (symbol "<")  'i64 (symbol ">") ( ) (symbol "(") (symbol ")") (symbol ".") 'expect (symbol "(") "Se esperaba un numero entero!" (symbol ")") 'println!))
+;(agregar-ptocoma (list 'let 'ch (symbol ":") 'char '= 'digitos (symbol ".") 'as_str (symbol "(") (symbol ")") (symbol ".") 'chars (symbol "(") (symbol ")") (symbol ".") 'nth (symbol "(") 'resto 'as 'unsize (symbol ")") (symbol ".") 'unwrap (symbol "(") (symbol ")") 'hexa ))
+;(agregar-ptocoma (list 'let 'limite (symbol ":") 'i64 '= 'f64 (symbol "::") 'sqrt (symbol "(") 'n 'as 'f64 (symbol ")") 'as 'i64 'let ))
+;(agregar-ptocoma (list 'let 'limite (symbol ":") 'i64 '= 'f64 (symbol "::") 'sqrt (symbol "(") 'n 'as 'f64 (symbol ")") 'as 'i64 'let 'mut 'd (symbol ":") 'i64 '= 'TRES 'while 'while 'while))
+;(agregar-ptocoma (list (symbol "{") 'let 'mut 'd (symbol ":") 'i64 '= 'TRES 'while 'd (symbol "<=") 'limite '&& 'es_p (symbol "{") 'if 'n (symbol "%") 'd '= '= 0 (symbol "{") 'es_p '= 'false (symbol "}") 'd '+ '= 2 (symbol "}") 'es_p (symbol "}")))
+
+;; (agregar-ptocoma (list (symbol "{") 'let 'mut 'd (symbol ":") 'i64 '= 'TRES 'while 'd (symbol "<=") 
+;; 'limite '&& 'es_p (symbol "{") 'if 'n (symbol "%") 
+;; 'd '= '= 0 (symbol "{") 'es_p '= 'false (symbol "}") 
+;; 'd '+ '= 2 (symbol "}") 'es_p (symbol "}") 'fn 'main (symbol "(") (symbol ")") (symbol "{") 
+;; 'println! (symbol "(") "*********************************************************************************************" (symbol ")") 
+;; 'println! (symbol "(") "Se ingresa un valor entero positivo, se muestran los numeros primos menores que ese valor." (symbol ")") 
+;; 'println! (symbol "(") "Se utiliza una funcion booleana para determinar si un numero impar mayor que 1 es primo o no." (symbol ")")
+;; 'println! (symbol "(") "*********************************************************************************************" (symbol ")") 
+;; 'println! (symbol "(") "x: " (symbol ")")
+;; 'io (symbol "::") 'stdout (symbol "(") (symbol ")") (symbol ".") 'flush (symbol "(") (symbol ")") (symbol ".") 'expect 
+;; (symbol "(") "Error de escritura!" (symbol ")") 'let 'mut 'renglon (symbol ":") 'String '= 'String (symbol "::") 'new (symbol "(") (symbol ")")
+;; 'io (symbol "::") 'stdin (symbol "(") (symbol ")") (symbol ".") 'read_line (symbol "(") '& 'mut 'renglon (symbol ")") (symbol ".")
+;; 'expect (symbol "(") "Error de lectura!" (symbol ")") 'let 'x (symbol ":") 'i64 '= 'renglon (symbol ".") 'trim 
+;; (symbol "(") (symbol ")") (symbol ".") 'parse (symbol "::") '< 'i64 '> (symbol "(") (symbol ")") (symbol ".") 'expect 
+;; (symbol "(") "Se esperaba un numero entero!" (symbol ")") 'if 'x (symbol "<=") 2 (symbol "{") 'print!  (symbol "(") 
+;; "No hay numeros primos menores que {}" (symbol ",") 'x (symbol ")") (symbol "}") 'else (symbol "{")
+;; 'print! (symbol "(") "No hay numeros primos menores que {} : 2" (symbol ",") 'x (symbol ")") 'let 'mut 'n (symbol ":") 'i64
+;; '= 'TRES 'while 'n '< 'x (symbol "{") 'if 'es_impar_primo (symbol "(") 'n (symbol ")") (symbol "{") 'print! 
+;; (symbol "(") " {}" (symbol ",") 'n (symbol ")") (symbol "}") 'n '+ '= 2 (symbol "}") (symbol "}") 'println! (symbol "(") (symbol ")")   
+;; (symbol "}")
+;; ))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; PALABRA-RESERVADA?: Recibe un elemento y devuelve true si es una palabra reservada de Rust; si no, false.
 ; Por ejemplo:
