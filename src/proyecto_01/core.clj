@@ -2581,8 +2581,7 @@
   ([texto args-totales args-restantes]
     (let [sig-arg (first args-restantes)]
       (cond
-        (string? sig-arg) 
-          (convertir-formato-impresion (reemplazar-primero texto "%s") args-totales (rest args-restantes))
+        (not sig-arg) (apply list texto args-totales)
         (integer? sig-arg) 
           (convertir-formato-impresion (reemplazar-primero texto "%d") args-totales (rest args-restantes))
         (float? sig-arg) 
@@ -2591,7 +2590,7 @@
             args-totales 
             (rest args-restantes)
           )
-        :else (apply list texto args-totales)
+        :else (convertir-formato-impresion (reemplazar-primero texto "%s") args-totales (rest args-restantes))
       )
     )
   )
