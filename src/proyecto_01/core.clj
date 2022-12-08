@@ -1767,10 +1767,10 @@
           ; la direccion de retorno (el valor del argumento incrementado en 1).
           CAL (let [direc (second fetched),
                     reg (mapa-regs direc)]
-                    (recur cod (conj regs-de-act reg) direc (conj pila (inc direc)) mapa-regs))
+                    (recur cod (conj regs-de-act reg) direc (conj pila (inc cont-prg)) mapa-regs))
 
-          ; JC: Salto condicional. Quita el ultimo valor de la pila. Si este es true, cambia cont-prg por el valor 
-          ; del argumento. Si no, incrementa cont-prg en 1.
+          ;; JC: Salto condicional. Quita el ultimo valor de la pila. Si este es true, cambia cont-prg por el valor 
+          ;; del argumento. Si no, incrementa cont-prg en 1.
           JC (let [elem (last pila), 
                   nueva-pila (vec (butlast pila))]
                   (if (= elem true)
@@ -1813,7 +1813,7 @@
           
           ; PUSHFM: PUSH FROM MEMORY. Direccionamiento directo. Incrementa cont-prg en 1 y 
           ; agrega al final de pila el elemento ubicado en la posicion de reg-actual indicada por el valor del argumento.
-          PUSHFM (recur cod regs-de-act (inc cont-prg) (conj pila (reg-actual (second fetched))) mapa-regs)
+          PUSHFM (recur cod regs-de-act (inc cont-prg) (conj pila (second (reg-actual (second fetched)))) mapa-regs)
 
           ; Incrementa cont-prg en 1 y quita el ultimo elemento de pila. Si hay un argumento, este indica donde colocar el elemento en el ultimo de los regs-de-act al llamar recursivamente a interpretar (verificando la compatibilidad de los tipos)
           ; Si no lo hay, solo incrementa cont-prg en 1 y quita el elemento de la pila.
@@ -1944,13 +1944,13 @@
           ; POPMUL: Como POPADD, pero multiplica.
           POPMUL (let [res (asignar-aritmetico regs-de-act pila reg-actual fetched *)]
                       (if (nil? res) res (recur cod res (inc cont-prg) (vec (butlast pila)) mapa-regs)))
-          
+
           ; POPDIV: Como POPADD, pero divide.
-          POPDIV (let [res (asignar-aritmetico regs-de-act pila reg-actual fetched /)]
+          POPDIV (let [res (asignar-aritmetico regs-de-act pila reg-actual fetched dividir)]
                       (if (nil? res) res (recur cod res (inc cont-prg) (vec (butlast pila)) mapa-regs)))
                                 
           ; POPMOD: Como POPADD, pero calcula el resto de la division.
-          POPMOD (let [res (asignar-aritmetico regs-de-act pila reg-actual fetched rem)]
+          POPMOD (let [res (asignar-aritmetico regs-de-act pila reg-actual fetched mod)]
                       (if (nil? res) res (recur cod res (inc cont-prg) (vec (butlast pila)) mapa-regs)))
 
           ; Incrementa cont-prg en 1 y quita el ultimo elemento de pila. El argumento indica 
@@ -1978,11 +1978,11 @@
                          (if (nil? res) res (recur cod res (inc cont-prg) (vec (butlast pila)) mapa-regs)))
 
           ; POPDIVREF: Como POPADDREF, pero divide.
-          POPDIVREF (let [res (asignar-aritmetico-ref regs-de-act pila reg-actual fetched /)]
+          POPDIVREF (let [res (asignar-aritmetico-ref regs-de-act pila reg-actual fetched dividir)]
                          (if (nil? res) res (recur cod res (inc cont-prg) (vec (butlast pila)) mapa-regs)))
 
           ; POPMODREF: Como POPADDREF, pero calcula el resto de la division.
-          POPMODREF (let [res (asignar-aritmetico-ref regs-de-act pila reg-actual fetched rem)]
+          POPMODREF (let [res (asignar-aritmetico-ref regs-de-act pila reg-actual fetched mod)]
                          (if (nil? res) res (recur cod res (inc cont-prg) (vec (butlast pila)) mapa-regs)))
 
           ; Incrementa cont-prg en 1, quita de la pila dos elementos, calcula su suma y la coloca al final de la pila 
@@ -2001,19 +2001,19 @@
                    (if (nil? res) res (recur cod regs-de-act (inc cont-prg) res mapa-regs)))
           
           ; DIV: Como ADD, pero divide.
-          DIV (let [res (aplicar-operador-diadico / pila)]
+          DIV (let [res (aplicar-operador-diadico dividir pila)]
                    (if (nil? res) res (recur cod regs-de-act (inc cont-prg) res mapa-regs)))
 
           ; MOD: Como ADD, pero calcula el resto de la division.
-          MOD (let [res (aplicar-operador-diadico rem pila)]
+          MOD (let [res (aplicar-operador-diadico mod pila)]
                    (if (nil? res) res (recur cod regs-de-act (inc cont-prg) res mapa-regs)))
 
           ; OR: Como ADD, pero calcula el or entre los dos valores.
-          OR (let [res (aplicar-operador-diadico #'clojure.core/or pila)]
+          OR (let [res (aplicar-operador-diadico #(or %1 %2) pila)]
                    (if (nil? res) res (recur cod regs-de-act (inc cont-prg) res mapa-regs)))
 
           ; AND: Como ADD, pero calcula el and entre los dos valores.
-          AND (let [res (aplicar-operador-diadico #'clojure.core/and pila)]
+          AND (let [res (aplicar-operador-diadico #(and %1 %2) pila)]
                    (if (nil? res) res (recur cod regs-de-act (inc cont-prg) res mapa-regs)))
           
           ; EQ: Como ADD, pero calcula la operacion relacional = entre los dos valores.
@@ -2053,15 +2053,13 @@
 
           ; TOI: Incrementa cont-prg en 1, quita de la pila un elemento numerico, lo convierte a entero y lo coloca 
           ; al final de la pila.
-          TOI (let [elemento (int (last pila)),
-                    nueva-pila (conj (vec (butlast pila)) elemento)] 
-                    (recur cod regs-de-act (inc cont-prg) nueva-pila mapa-regs))   
-          
+          TOI (let [elemento (aplicar-operador-monadico pasar-a-int pila)] 
+              (if (nil? elemento) elemento (recur cod regs-de-act (inc cont-prg) elemento mapa-regs)))
+
           ; TOF: Incrementa cont-prg en 1, quita de la pila un elemento numerico, lo convierte a punto flotante y 
           ; lo coloca al final de la pila.
-          TOF (let [elemento (float (last pila)),
-                    nueva-pila (conj (vec (butlast pila)) elemento)] 
-                    (recur cod regs-de-act (inc cont-prg) nueva-pila mapa-regs))  
+          TOF (let [elemento (aplicar-operador-monadico pasar-a-float pila)] 
+                    (if (nil? elemento) elemento (recur cod regs-de-act (inc cont-prg) elemento mapa-regs)))  
           
           ; SQRT: Incrementa cont-prg en 1, quita de la pila un elemento numerico, calcula su raiz cuadrada y la 
           ; coloca al final de la pila.
@@ -2085,8 +2083,7 @@
           ; lo coloca al final de la pila.
           ABS (let [elemento (Math/abs (last pila)),
                     nueva-pila (conj (vec (butlast pila)) elemento)] 
-                    (recur cod regs-de-act (inc cont-prg) nueva-pila mapa-regs))  
-
+                    (recur cod regs-de-act (inc cont-prg) nueva-pila mapa-regs)) 
        )
   )
 )
