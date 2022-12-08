@@ -16,12 +16,14 @@
 
 (deftest listar-test
   (testing "Prueba de la función: listar"
-    (is (= (str 'fn \space 'main \space (symbol "(") \space (symbol ")") \space \newline (symbol "{") \newline \space \tab \space 'println! \space (symbol "(") \space (str "\"") "Hola, mundo!" (str "\"") \space (symbol ")") \space \newline (symbol "}") \newline \newline) (with-out-str (listar (list 'fn 'main (symbol "(") (symbol ")") (symbol "{") 'println! (symbol "(") "Hola, mundo!" (symbol ")") (symbol "}"))))))
+    (is (= (str 'fn \space 'main \space (symbol "(") \space (symbol ")") \space \newline (symbol "{") \newline \tab 'println! \space (symbol "(") \space (str "\"") "Hola, mundo!" (str "\"") \space (symbol ")") \newline (symbol "}") \newline) (with-out-str (listar (list 'fn 'main (symbol "(") (symbol ")") (symbol "{") 'println! (symbol "(") "Hola, mundo!" (symbol ")") (symbol "}"))))))
   )
 )
 
 
- 
+ (println (str 'fn \space 'main \space (symbol "(") \space (symbol ")") \space \newline (symbol "{") 
+ \newline \space \tab \space 'println! \space (symbol "(") \space (str "\"") "Hola, mundo!" (str "\"") 
+ \space (symbol ")") \space \newline (symbol "}") \newline))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; AGREGAR-PTOCOMA: 
 ; user=> (agregar-ptocoma (list 'fn 'main (symbol "(") (symbol ")") (symbol "{") 'if 'x '< '0 (symbol "{") 'x '= '- 'x (symbol ";") (symbol "}") 'renglon '= 'x (symbol ";") 'if 'z '< '0 (symbol "{") 'z '= '- 'z (symbol ";") (symbol "}") (symbol "}") 'fn 'foo (symbol "(") (symbol ")") (symbol "{") 'if 'y '> '0 (symbol "{") 'y '= '- 'y (symbol ";") (symbol "}") 'else (symbol "{") 'x '= '- 'y (symbol ";") (symbol "}") (symbol "}")))

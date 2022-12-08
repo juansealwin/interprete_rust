@@ -2115,11 +2115,12 @@
         )
         
       (= (symbol "}") token)  
-        (concat 
-         (take (dec idx) tokens) 
+        (concat
+          (concat (take (dec idx) tokens) (list \newline)
           (concat 
             (concat (list token) (concat (list \newline) (repeat (dec nro-bloque) \tab)))
             (nthrest tokens (inc idx)))
+          )
         )
       :else 
         (concat 
@@ -2150,7 +2151,7 @@
 
 (defn listar 
   ([tokens] (listar 0 tokens 0))
-  ([idx tokens nro-bloque] (
+  ([idx tokens nro-bloque]
     (if (> (count tokens) idx)
       (let [token (nth tokens idx)]
       (cond
@@ -2164,17 +2165,17 @@
             (+ idx 2 nro-bloque) 
             (ins-salto-y-tabulador idx tokens nro-bloque) 
             nro-bloque)
-        (= (symbol "}") token) 
+        (= (symbol "}") token)
           (listar 
             (+ idx 1 (cond (> nro-bloque 0) (dec nro-bloque) :else 0 )) 
             (ins-salto-y-tabulador idx tokens nro-bloque) 
             (dec nro-bloque))
+        (= \newline token) (listar (inc idx) tokens nro-bloque)
         :else (listar (+ idx 2) (ins-espacio tokens idx) nro-bloque)
       ))
-    ;(println (str (clojure.string/join tokens ))))
-    (dorun (map imprimir tokens )))
-  ))
-)
+    (dorun (map imprimir tokens))
+  )
+))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; AGREGAR-PTOCOMA: Recibe una lista con los tokens de un programa en Rust y la devuelve con un token ; insertado a continuacion de ciertas } (llaves de cierre, pero no a continuacion de todas ellas).
