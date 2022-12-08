@@ -2184,244 +2184,37 @@
 ; (fn main ( ) { if x < 0 { x = - x ; } ; renglon = x ; if z < 0 { z = - z ; } } fn foo ( ) { if y > 0 { y = - y ; } else { x = - y ; } })
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-
-(defn contar-symb 
-  ([tokens idx simb]
-    (
-      + (count (take-while #(not= simb %1) (nthnext tokens idx))) 1
-    )
-  )
-  ([tokens idx simb simb-excep] (contar-symb tokens idx simb simb-excep 0))
-  ([tokens idx simb simb-excep cant-excep]
-    (let [
-      nuevo-idx (inc idx),
-      simb-encontrado (nth tokens idx),
-      nueva-cant
-        (cond 
-          (= simb-encontrado simb) (dec cant-excep)  
-          (= simb-encontrado simb-excep) (inc cant-excep)
-          :else cant-excep
-        )
-    ]
-      (cond
-        (and (= simb-encontrado simb) (> 1 nueva-cant)) nuevo-idx
-        (> (count tokens) idx) (contar-symb tokens nuevo-idx simb simb-excep nueva-cant)
-        :else (count tokens)
-      )      
-    )
-  )
-)
-
-(defn contar-symb-hasta [tokens idx condicion-corte]
-  (
-    count (take-while #(= (condicion-corte %1) false) (nthnext tokens idx))
-  )
-)
-
-(defn contar-verificar-sig [tokens idx simb simb-excep sig-char]
-  (let [nuevo-idx (contar-symb tokens idx simb simb-excep), sig (nth tokens nuevo-idx)] 
-      (cond
-        (= sig sig-char) (contar-verificar-sig tokens nuevo-idx simb simb-excep sig-char)
-        :else nuevo-idx 
-      )
-  )
-)
-
-(defn sigue-expresion [token]
-  (cond
-    (or (= token (symbol "{")) (= token (symbol "|")) (= token (symbol "&")) (= token (symbol "="))) true
-    :else false
-  )
-)
-
-(defn ins-ptocoma [tokens idx]
-  ;; Por si ya habia un ;
-  (if (not= (nth tokens idx) (symbol ";"))
-    (concat 
-      (concat (take idx tokens) (list (symbol ";"))) 
-      (nthrest tokens idx)
-    )
-    tokens
-  )
-)
-
-
-(defn ptocoma-use [idx-tokens]  
-  (let [tokens (second idx-tokens), 
-        idx (first idx-tokens),
-        insertar-idx (cond (= (nth tokens (+ idx 4)) (symbol "::")) (+ idx 6) :else (+ idx 4))]
-          (vector (inc insertar-idx) (ins-ptocoma tokens insertar-idx))
-  )
-)
-
-(defn ptocoma-cierre-bloque [idx-tokens nro-bloque]
-  (if (> nro-bloque 1)  
-    (let [tokens (second idx-tokens), 
-          idx (first idx-tokens),
-          sig-idx (inc idx),
-          sig-token (nth tokens sig-idx),
-          res (cond 
-            (and (not= sig-token 'else) (not= sig-token (symbol "}"))) (ins-ptocoma tokens sig-idx) 
-            :else tokens)]
-            (vector sig-idx res))
-    (vector (inc (first idx-tokens)) (second idx-tokens))
-  )
-)
-
-
-(defn ptocoma-igualdad [idx-tokens]  
-  (let [tokens (second idx-tokens), 
-        idx (inc (first idx-tokens)),
-        token (nth tokens idx)] 
-    (cond 
-      (= '= token) (vector (inc idx) tokens)
-
-      (number? token)
-        (let [sig-idx (cond (= (nth tokens (inc idx)) '*) (contar-symb tokens idx (symbol ")") (symbol "(")) :else (inc idx)),
-              res (cond (sigue-expresion (nth tokens sig-idx)) tokens :else (ins-ptocoma tokens sig-idx) )]
-        (vector (inc sig-idx) res))
-
-      (= 'String token)
-        (let [sig-idx (contar-symb tokens idx (symbol ")") (symbol "("))] 
-        (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
-      
-      (= 'f64 token)
-        (let [
-          sig-idx (contar-symb tokens idx (symbol ")") (symbol "(")),
-          res-idx (cond (= (nth tokens (+ idx 5)) 'as) (+ sig-idx 2) :else sig-idx )
-        ] 
-        (vector (inc res-idx) (ins-ptocoma tokens res-idx)))
-      
-      (or (= (symbol "-") token) (= (symbol "*") token))
-        (let [sig-idx (cond (= (nth tokens (inc idx)) (symbol "*")) (+ idx 3) :else (+ idx 2))
-              res (cond (sigue-expresion (nth tokens sig-idx)) tokens :else (ins-ptocoma tokens sig-idx))]
-        (vector (inc sig-idx) res))
-
-      ; TODO: para el ejemplo de = "nombre_ident" ej main09.rs
-      (identificador? token)
-        (let [
-          nuevo-idx (+ idx 2),
-          sig-token (nth tokens nuevo-idx),        
-        ]
-          (cond
-            ;TODO: revisar
-            (= 'as_str sig-token)
-              (let [
-                expect-idx (+ nuevo-idx (contar-symb tokens nuevo-idx 'unwrap)),
-                sig-idx (+ 1 expect-idx (contar-symb tokens (inc expect-idx) (symbol ")")))
-              ] 
-              (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
-
-            (= 'trim sig-token)
-              (let [
-                expect-idx (+ nuevo-idx (contar-symb tokens nuevo-idx 'expect)),
-                sig-idx (+ 1 expect-idx (contar-symb tokens (inc expect-idx) (symbol ")")))
-              ] 
-              (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
-            
-            :else (let [
-              token-que-sigue (nth tokens (inc idx)),
-              sig-idx (
-                cond 
-                  (or 
-                    (= token-que-sigue (symbol ".")) 
-                    (= token-que-sigue (symbol "("))
-                  ) (contar-symb tokens idx (symbol ")") (symbol "(")) 
-                  :else (inc idx)
-              )
-              ]
-              (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)))
-          )
-        )
-         
-      (symbol? token)
-        (let 
-        [
-          sig-token (nth tokens (inc idx)),
-          sig-idx 
-            (cond 
-              (sigue-expresion sig-token) idx 
-              (= sig-token (symbol ".")) (contar-verificar-sig tokens idx (symbol ")") (symbol "(") (symbol "."))
-              (= (symbol "(") token) (+ idx (contar-symb-hasta tokens idx palabra-reservada?))
-              :else (inc idx)
-            ),
-          res (cond (sigue-expresion (nth tokens sig-idx)) tokens :else (ins-ptocoma tokens sig-idx) )
-        ]
-        (vector (inc sig-idx) res))
-      
-      :else (vector idx tokens)
-    )
-  )
-)
-
-
+  
 
 (defn agregar-ptocoma 
-  ([tokens] (agregar-ptocoma (vector 0 tokens) 0))
-  ([idx-tokens nro-bloque] (
-    let [
-      tokens (second idx-tokens),
-      idx (first idx-tokens)
-    ]
-    (if (> (count tokens) idx)
-      (let [token (nth tokens idx)]
-      (cond
-        (= 'use token ) (agregar-ptocoma (ptocoma-use idx-tokens) nro-bloque)
-        (= 'const token) (agregar-ptocoma (vector (+ idx 7) (ins-ptocoma tokens (+ idx 6))) nro-bloque)
-        (= (symbol "{") token) (agregar-ptocoma (vector (inc idx) tokens) (inc nro-bloque))
-        (= (symbol "}") token) (agregar-ptocoma (ptocoma-cierre-bloque idx-tokens nro-bloque) (dec nro-bloque))
-        (= token (symbol "=")) (agregar-ptocoma (ptocoma-igualdad idx-tokens) nro-bloque)
-        (= 'return token) (agregar-ptocoma (vector (+ idx 3) (ins-ptocoma tokens (+ idx 2)))  nro-bloque)
-        (= 'process token) (agregar-ptocoma (vector (+ idx 7) (ins-ptocoma tokens (+ idx 6))) nro-bloque)
-        (or (= 'format! token) (= 'print! token) (= 'println! token))
-          (let [sig-idx (contar-symb tokens idx (symbol ")") (symbol "("))] 
-          (agregar-ptocoma (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)) nro-bloque))
-
-        (= 'io token) 
-          (let [sig-idx (contar-verificar-sig tokens idx (symbol ")") (symbol "(") (symbol "."))] 
-          (agregar-ptocoma (vector (inc sig-idx) (ins-ptocoma tokens sig-idx)) nro-bloque))
-
-        :else (agregar-ptocoma (vector (inc idx) tokens) nro-bloque)
-      ))
-      tokens
+  ([tokens] (agregar-ptocoma tokens 0 (list) 0))
+  ([tokens idx res nivel-bloque]
+    (cond
+      (= (count tokens) idx) (reverse res)
+      :else 
+        (let [
+          token (nth tokens idx),
+          sig-idx (inc idx)
+        ]
+            (cond
+              (= token (symbol "{")) 
+                (agregar-ptocoma tokens sig-idx (conj res token) (inc nivel-bloque))
+              (= token (symbol "}")) 
+                (cond 
+                  (and 
+                    (> nivel-bloque 1) 
+                    (not= (nth tokens sig-idx) (symbol ")")) 
+                    (not= (nth tokens sig-idx) (symbol "}"))
+                    (not= (nth tokens sig-idx) 'else)) 
+                      (agregar-ptocoma tokens sig-idx (conj res token (symbol ";")) (dec nivel-bloque)) 
+                  :else (agregar-ptocoma tokens sig-idx (conj res token) (dec nivel-bloque)))
+              :else (agregar-ptocoma tokens sig-idx (conj res token) nivel-bloque)
+            )
+        )
     )
-  ))
-)
+  )
+) 
 
-
-
-; TODO: borrar
-;(agregar-ptocoma (list 'io (symbol ":") (symbol ":") 'stdout (symbol "(") (symbol ")") (symbol ".") 'flush (symbol "(") (symbol ")") (symbol ".") 'expect  (symbol "(") "error de esc" (symbol ")") (symbol "}") ))
-;(agregar-ptocoma (list 'let 'mut 'r (symbol ":") 'f64 (symbol "=") (symbol "(") 'izq '+ 'der (symbol ")") (symbol "/") 2.0 'let))
-;(agregar-ptocoma (list 'let 'm (symbol ":") 'f6 '= 'potencia_rec (symbol "(") 'x (symbol ",") 'n (symbol "/") 2 (symbol ")") 'let ) )
-;(agregar-ptocoma (list 'let 'e (symbol ":") 'i64 '= 'renglon (symbol ".") 'trim (symbol "(") (symbol ")") (symbol ".") 'parse (symbol "::") (symbol "<")  'i64 (symbol ">") ( ) (symbol "(") (symbol ")") (symbol ".") 'expect (symbol "(") "Se esperaba un numero entero!" (symbol ")") 'println!))
-;(agregar-ptocoma (list 'let 'ch (symbol ":") 'char '= 'digitos (symbol ".") 'as_str (symbol "(") (symbol ")") (symbol ".") 'chars (symbol "(") (symbol ")") (symbol ".") 'nth (symbol "(") 'resto 'as 'unsize (symbol ")") (symbol ".") 'unwrap (symbol "(") (symbol ")") 'hexa ))
-;(agregar-ptocoma (list 'let 'limite (symbol ":") 'i64 '= 'f64 (symbol "::") 'sqrt (symbol "(") 'n 'as 'f64 (symbol ")") 'as 'i64 'let ))
-;(agregar-ptocoma (list 'let 'limite (symbol ":") 'i64 '= 'f64 (symbol "::") 'sqrt (symbol "(") 'n 'as 'f64 (symbol ")") 'as 'i64 'let 'mut 'd (symbol ":") 'i64 '= 'TRES 'while 'while 'while))
-;(agregar-ptocoma (list (symbol "{") 'let 'mut 'd (symbol ":") 'i64 '= 'TRES 'while 'd (symbol "<=") 'limite '&& 'es_p (symbol "{") 'if 'n (symbol "%") 'd '= '= 0 (symbol "{") 'es_p '= 'false (symbol "}") 'd '+ '= 2 (symbol "}") 'es_p (symbol "}")))
-
-;; (agregar-ptocoma (list (symbol "{") 'let 'mut 'd (symbol ":") 'i64 '= 'TRES 'while 'd (symbol "<=") 
-;; 'limite '&& 'es_p (symbol "{") 'if 'n (symbol "%") 
-;; 'd '= '= 0 (symbol "{") 'es_p '= 'false (symbol "}") 
-;; 'd '+ '= 2 (symbol "}") 'es_p (symbol "}") 'fn 'main (symbol "(") (symbol ")") (symbol "{") 
-;; 'println! (symbol "(") "*********************************************************************************************" (symbol ")") 
-;; 'println! (symbol "(") "Se ingresa un valor entero positivo, se muestran los numeros primos menores que ese valor." (symbol ")") 
-;; 'println! (symbol "(") "Se utiliza una funcion booleana para determinar si un numero impar mayor que 1 es primo o no." (symbol ")")
-;; 'println! (symbol "(") "*********************************************************************************************" (symbol ")") 
-;; 'println! (symbol "(") "x: " (symbol ")")
-;; 'io (symbol "::") 'stdout (symbol "(") (symbol ")") (symbol ".") 'flush (symbol "(") (symbol ")") (symbol ".") 'expect 
-;; (symbol "(") "Error de escritura!" (symbol ")") 'let 'mut 'renglon (symbol ":") 'String '= 'String (symbol "::") 'new (symbol "(") (symbol ")")
-;; 'io (symbol "::") 'stdin (symbol "(") (symbol ")") (symbol ".") 'read_line (symbol "(") '& 'mut 'renglon (symbol ")") (symbol ".")
-;; 'expect (symbol "(") "Error de lectura!" (symbol ")") 'let 'x (symbol ":") 'i64 '= 'renglon (symbol ".") 'trim 
-;; (symbol "(") (symbol ")") (symbol ".") 'parse (symbol "::") '< 'i64 '> (symbol "(") (symbol ")") (symbol ".") 'expect 
-;; (symbol "(") "Se esperaba un numero entero!" (symbol ")") 'if 'x (symbol "<=") 2 (symbol "{") 'print!  (symbol "(") 
-;; "No hay numeros primos menores que {}" (symbol ",") 'x (symbol ")") (symbol "}") 'else (symbol "{")
-;; 'print! (symbol "(") "No hay numeros primos menores que {} : 2" (symbol ",") 'x (symbol ")") 'let 'mut 'n (symbol ":") 'i64
-;; '= 'TRES 'while 'n '< 'x (symbol "{") 'if 'es_impar_primo (symbol "(") 'n (symbol ")") (symbol "{") 'print! 
-;; (symbol "(") " {}" (symbol ",") 'n (symbol ")") (symbol "}") 'n '+ '= 2 (symbol "}") (symbol "}") 'println! (symbol "(") (symbol ")")   
-;; (symbol "}")
-;; ))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2716,24 +2509,19 @@
 ;                                                                                                                           ^  ^^^^^^^^^^^^                                                                    ^^^^^^^^^^^^^^^^^                                                                               ^^^^^^^^^^^^
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn generar-ref 
-  ([ambiente]
-    (cond 
-      (= (first (first (reverse ((contexto ambiente) 1)))) (last (simb-ya-parseados ambiente))) 
-        (generar ambiente 'PUSHADDR ((first (reverse ((contexto ambiente) 1))) 2))
-      :else (
-        let [sub-vec (reverse ((contexto ambiente) 1)), var (last (simb-ya-parseados ambiente))] 
-        (generar-ref ambiente sub-vec 1 var)
-      )
-    )
-  )
-  ([ambiente sub-vec idx var]
-    (cond 
-      (= (first (sub-vec idx)) var) (generar ambiente 'PUSHADDR ((sub-vec idx) 2))
-      :else (let [inc-idx (inc idx)] (generar-ref ambiente sub-vec inc-idx var))
-    )
+
+(defn generar-ref [ambiente]
+  (cond 
+    (= (estado ambiente) :sin-errores) 
+      (let [
+        direccion (last (simb-ya-parseados ambiente))
+        variable-contexto (last (filter #(= (nth % 0) direccion) (nth (contexto ambiente) 1)))
+      ]
+        (generar ambiente 'PUSHADDR (last variable-contexto)))
+    :else ambiente
   )
 )
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; FIXUP: Recibe un ambiente y la ubicacion de un JMP ? a corregir en el vector de bytecode. Si el estado no es
@@ -2775,7 +2563,7 @@
     
 (defn reemplazar-primero 
   ([texto cadena] (clojure.string/replace-first texto "{}" cadena))
-  ([texto token cadena] (clojure.string/replace-first texto "{}" cadena))
+  ([texto token cadena] (clojure.string/replace-first texto token cadena))
 )
 
 (defn convertir-formato-impresion 
@@ -2798,7 +2586,7 @@
           (convertir-formato-impresion (reemplazar-primero texto "%d") args-totales (rest args-restantes))
         (float? sig-arg) 
           (convertir-formato-impresion 
-            (reemplazar-primero (reemplazar-primero texto "%.0f") #"\{:.(\d)\}" "%.$1f")
+            (reemplazar-primero (reemplazar-primero texto "%.0f") #"\{:(\.\d)\}" "%$1f")
             args-totales 
             (rest args-restantes)
           )
